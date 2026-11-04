@@ -6,10 +6,9 @@
  *   <Menu3D games={GAMES} categories={CATEGORIES} onPick={id => …} />
  *
  * - El GL (World3D) vive solo mientras el menú está montado: al abrir un juego se desmonta (un único contexto GL).
- * - La física del carrusel se integra dentro de getScene (mismo frame que el render) y los textos 2D
- *   (emoji / nombre sobre cada máquina) se proyectan con project() y solo se re-renderizan mientras algo se mueve.
+ * - La escena muestra una sola máquina arcade 3D; la selección de juegos vive en una lista 2D.
  * - Ajustes y Perfil/Logros están en ui/Panels3D.js y se abren sobre esta misma escena (la cámara se aleja y orbita).
- * - testIDs: menu-<id> (capa de accesibilidad/pruebas, solo web), cat-<id>, daily, surprise, overview, play, fav-<id>,
+ * - testIDs: menu-<id> (capa de accesibilidad/pruebas, solo web), cat-<id>, select-<id>, play, fav-<id>,
  *   open-ach, open-profile, open-settings, panel-close.
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
@@ -30,9 +29,6 @@ const SP = 1.75;                 // separación entre máquinas (m)
 const GAP = 0.8;                 // hueco extra entre grupos de categoría (en «máquinas»)
 const RMIN = 7.5, RMAX = 40;     // radio de la rotonda
 const CAM_D = 6.0, CAM_H = 2.15, CAM_LY = 0.35, CAM_FOV = 52;
-const PXU = 96;                  // píxeles de arrastre por máquina
-const DRAG_SLOP = 10;            // un pequeño desplazamiento ya cuenta como arrastre
-const VIS = 5.6;                 // máquinas visibles a cada lado
 const BG = '#07051a';
 const CAT_COL = { all: C.cyan, fav: C.amber, accion: C.pink, arcade: C.lime, reflejos: C.orange, puzzle: C.violet, aventura: C.blue };
 const MEM = { cat: 'all', id: null, seen: false };   // el menú recuerda dónde te quedaste al volver de un juego
@@ -175,7 +171,7 @@ function newState() {
     lay: null, pos: 0, target: 0, vel: 0, idx: 0, dragging: false, dragT: 0, moved: false,
     introT: MEM.seen ? 0.35 : 0, panelT: 0, panel: false, launch: null, launchT: 0, spin: null,
     t0: 0, lastT: 0, wasActive: true, listeners: new Set(), lc: '#22e6ff', mote: 0, cam: null, W: 390, H: 844,
-    timers: [], onFocus: null, dailyId: null, overview: false,
+    timers: [], onFocus: null, dailyId: null,
   };
 }
 function stepPhysics(S, dt) {
@@ -217,11 +213,8 @@ function camFor(S, t, pr) {
   return { p: [Math.sin(aa) * (R - D), h, -Math.cos(aa) * (R - D)], l: [Math.sin(a) * R, ly, -Math.cos(a) * R], fov };
 }
 
-// Vista general: una cámara elevada y alejada encuadra la rotonda completa.
-function overviewCam(S) {
-  const R = S.lay.R;
-  const d = Math.max(14, R * 1.32);
-  return { p: [0, d * 0.82, d], l: [0, 0.35, 0], fov: 64 };
+function arcadeCam() {
+  return { p: [0, 2.45, 5.8], l: [0, 1.15, 0], fov: 52 };
 }
 
 function sceneAt(S, t) {
@@ -230,112 +223,36 @@ function sceneAt(S, t) {
   const active = stepPhysics(S, dt);
   if (active || S.wasActive) S.listeners.forEach(f => f());
   S.wasActive = active;
-  const cam = S.overview ? overviewCam(S) : camFor(S, t, false); S.cam = cam;
-
-  const a = S.pos * lay.aStep, sa = Math.sin(a), ca = Math.cos(a);
-  const hx0 = sa * lay.R, hz0 = -ca * lay.R, nx = -sa, nz = ca, tx = ca, tz = sa;   // n = hacia el centro · tg = tangente
   const hero = lay.n ? lay.items[Math.min(S.idx, lay.n - 1)] : null;
   S.lc = mix(S.lc, hero ? hero.color : '#22e6ff', 1 - Math.exp(-dt * 7));
   const lc = S.lc;
+  const cam = arcadeCam(); S.cam = cam;
 
   const objs = [];
-  for (let i = 0; i < lay.n; i++) {
-    const off = wd(lay, lay.slot[i] - S.pos), ao = Math.abs(off);
-    if (!S.overview && ao > VIS) continue;
-    const g = lay.items[i];
-    const age = t - S.t0 - ao * 0.05;
-    if (!S.overview && age <= 0) continue;
-    const pop = easeBack(age / 0.5);
-    const w = Math.max(0, 1 - ao);
-    const ms = S.overview ? 1 : Math.max(0.001, pop * (1 + 0.05 * w));
-    const phi = -lay.ang[i] + Math.sin(t * 1.3 + i) * 0.04 * w;
-    const br = Math.max(0.28, 1 - ao * 0.3) * (w > 0.5 ? 0.93 + 0.07 * Math.sin(t * 7) : 1);
-    pushMachine(objs, g, lay.px[i], lay.pz[i], phi, ms, br, S.overview || ao > 2.3, !S.overview && w > 0.5, t);
-    if (g.id === S.dailyId) objs.push({ inst: 'dr', k: 'ring', p: [lay.px[i] - Math.sin(lay.ang[i]) * 0.2, 0.03, lay.pz[i] + Math.cos(lay.ang[i]) * 0.2], s: [2.2 * ms, 2.2 * ms, 1], c: '#ffc233', e: 1 });
-  }
   if (hero) {
-    objs.push({ id: 'pool', k: 'box', p: [hx0 + nx * 1.1, 0.025, hz0 + nz * 1.1], s: [3.6, 0.02, 3.0], r: [0, -a, 0], c: lc, e: 1, o: 0.16 });
-    objs.push({ id: 'beam', k: 'cone', p: [hx0 + nx * 0.2, 3.3, hz0 + nz * 0.2], s: [2.8, 6.6, 2.8], c: lc, e: 1, o: 0.055 });
+    const age = Math.max(0, t - S.t0);
+    const pop = Math.max(0.001, easeBack(age / 0.5));
+    pushMachine(objs, hero, 0, 0, Math.sin(t * 1.3) * 0.025, pop, 1, false, true, t);
+    objs.push({ id: 'pool', k: 'box', p: [0, 0.025, 1.1], s: [3.6, 0.02, 3.0], c: lc, e: 1, o: 0.16 });
+    objs.push({ id: 'beam', k: 'cone', p: [0, 3.3, 0.2], s: [2.8, 6.6, 2.8], c: lc, e: 1, o: 0.055 });
   }
   // polvo de luz flotando
   S.mote -= dt;
   if (S.mote <= 0 && lay.n) {
     S.mote = 0.09;
-    const u = (Math.random() - 0.5) * 7, v = 0.5 + Math.random() * 4;
-    burst3d([hx0 + tx * u + nx * v, 0.2 + Math.random() * 3.2, hz0 + tz * u + nz * v], [lc, '#ffffff', '#22e6ff', '#ff3df2'], 1, { speed: 0.25, life: 3.2, size: 0.05, g: -0.12, drag: 0.4 });
+    const u = (Math.random() - 0.5) * 3, v = 0.5 + Math.random() * 3;
+    burst3d([u, 0.2 + Math.random() * 3.2, v], [lc, '#ffffff', '#22e6ff', '#ff3df2'], 1, { speed: 0.25, life: 3.2, size: 0.05, g: -0.12, drag: 0.4 });
   }
-  const sunX = nx * 0.6 - tx * 0.35, sunZ = nz * 0.6 - tz * 0.35;
   return {
-    objs, statics: lay.statics, cam, bg: BG,     fog: { c: BG, near: 5, far: S.overview ? Math.max(60, lay.R * 3.2) : 28 },
-    light: { dir: [sunX, 1.0, sunZ], sun: '#c9b8ff', i: 1.25, sky: mix('#3f3590', lc, 0.3), ground: '#15102e', hi: 1.0 },
+    objs, statics: lay.statics, cam, bg: BG, fog: { c: BG, near: 5, far: 28 },
+    light: { dir: [-0.5, 1.0, 0.4], sun: '#c9b8ff', i: 1.25, sky: mix('#3f3590', lc, 0.3), ground: '#15102e', hi: 1.0 },
     lights: [
-      { p: [hx0 + nx * 2.0, 2.7, hz0 + nz * 2.0], c: lc, i: 10, d: 10 },
-      { p: [hx0 + nx * 1.6 - tx * 3.2, 1.6, hz0 + nz * 1.6 - tz * 3.2], c: '#22e6ff', i: 5, d: 8 },
-      { p: [hx0 + nx * 1.6 + tx * 3.2, 1.6, hz0 + nz * 1.6 + tz * 3.2], c: '#ff3df2', i: 5, d: 8 },
+      { p: [0, 2.7, 2.0], c: lc, i: 10, d: 10 },
+      { p: [-3.2, 1.6, 1.6], c: '#22e6ff', i: 5, d: 8 },
+      { p: [3.2, 1.6, 1.6], c: '#ff3df2', i: 5, d: 8 },
     ],
     shadowR: 12,
   };
-}
-
-function hitTest(S, x, y) {
-  const lay = S.lay;
-  if (!lay.n) return -1;
-  const cam = S.overview ? overviewCam(S) : camFor(S, nowS(), false);
-  const tf = Math.tan((cam.fov * Math.PI) / 360);
-  let best = -1, bz = 1e9;
-  for (let i = 0; i < lay.n; i++) {
-    const off = wd(lay, lay.slot[i] - S.pos);
-    if (Math.abs(off) > 3.4) continue;
-    const c = project(cam, [lay.px[i], 1.2, lay.pz[i]], S.W, S.H);
-    if (!c) continue;
-    const pxu = S.H / 2 / (c.z * tf);
-    if (Math.abs(x - c.x) < 0.62 * pxu && Math.abs(y - c.y) < 1.3 * pxu && c.z < bz) { best = i; bz = c.z; }
-  }
-  return best;
-}
-
-// ─── Textos 2D proyectados sobre las máquinas ─────────────────────
-function Labels({ S }) {
-  const [, force] = useReducer(x => (x + 1) % 1e9, 0);
-  useEffect(() => { S.listeners.add(force); return () => S.listeners.delete(force); }, [S]);
-  const lay = S.lay;
-  if (!lay || !lay.n || S.panelT > 0.25 || S.launchT > 0.15) return null;
-  const t = nowS(), cam = S.overview ? overviewCam(S) : camFor(S, t, true), tf = Math.tan((cam.fov * Math.PI) / 360), W = S.W, H = S.H;
-  const pos = S.pos + S.vel * 0.016;
-  const out = [];
-  for (let i = 0; i < lay.n; i++) {
-    const off = wd(lay, lay.slot[i] - pos), ao = Math.abs(off);
-    if (S.overview ? ao > S.lay.n + 1 : ao > 2.7) continue;
-    const g = lay.items[i], age = t - S.t0 - ao * 0.05;
-    if (age < 0.38) continue;
-    const a = lay.ang[i], sa = Math.sin(a), ca = Math.cos(a);   // phi = -a → sφ = -sa · cφ = ca
-    const ld = (lx, ly, lz) => project(cam, [lay.px[i] - lz * sa + lx * ca, ly, lay.pz[i] + lz * ca + lx * sa], W, H);
-    const sc = ld(0, 1.64, 0.24);
-    if (!sc) continue;
-    const pxu = H / 2 / (sc.z * tf), op = clamp01(1.25 - ao * 0.42) * clamp01((age - 0.38) / 0.2);
-    const fs = Math.round(0.33 * pxu);
-    out.push(
-      <View key={g.id + 'e'} pointerEvents="none" style={{ position: 'absolute', left: sc.x - fs * 0.85, top: sc.y - fs * 0.85, width: fs * 1.7, height: fs * 1.7, borderRadius: fs * 0.85, backgroundColor: 'rgba(5,4,15,0.34)', alignItems: 'center', justifyContent: 'center', opacity: op }}>
-        <Text style={{ fontSize: fs, lineHeight: Math.round(fs * 1.18), textAlign: 'center' }}>{g.emoji}</Text>
-      </View>,
-    );
-    if (S.overview || ao < 1.7) {
-      const mq = ld(0, 2.24, 0.3);
-      if (mq) {
-        const pw = S.overview ? Math.max(48, 0.9 * pxu) : 0.9 * pxu;
-        const nf = S.overview ? Math.max(5, Math.min(10, Math.floor(pw / (g.name.length * 0.8)))) : Math.max(6, Math.min(15, Math.floor(pw / (g.name.length * 0.8))));
-        out.push(<Text key={g.id + 'n'} pointerEvents="none" numberOfLines={1} style={{ position: 'absolute', left: mq.x - pw / 2, width: pw, top: mq.y - nf * 0.62, textAlign: 'center', color: '#07051a', fontSize: nf, lineHeight: nf * 1.25, fontWeight: '900', letterSpacing: 0.4, opacity: op }}>{g.name}</Text>);
-      }
-    }
-    if (S.overview || ao < 2.3) {
-      const top = ld(0, 2.62, 0.2);
-      if (top) {
-        if (g.id === S.dailyId) out.push(<View key={g.id + 'd'} pointerEvents="none" style={{ position: 'absolute', left: top.x - 36, top: top.y - 22, width: 72, alignItems: 'center', opacity: op }}><View style={{ backgroundColor: C.amber, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ color: '#04040c', fontSize: 10, fontWeight: '900' }}>🎯 RETO</Text></View></View>);
-        if (S.favs && S.favs[g.id]) out.push(<Text key={g.id + 'f'} pointerEvents="none" style={{ position: 'absolute', left: top.x + 0.42 * pxu - 12, top: top.y - 4, width: 24, fontSize: Math.max(12, 0.17 * pxu), textAlign: 'center', opacity: op }}>⭐</Text>);
-      }
-    }
-  }
-  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>{out}</View>;
 }
 
 // ─── Interfaz 2D ──────────────────────────────────────────────────
@@ -453,6 +370,30 @@ function Scrubber({ items, idx, onScrub }) {
   );
 }
 
+function GamePicker({ items, idx, onSelect }) {
+  return (
+    <View style={{ backgroundColor: 'rgba(7,9,24,0.82)', borderRadius: 22, borderWidth: 1.5, borderColor: alpha(C.cyan, 0.45), paddingVertical: 10, ...glow(C.cyan, 12, 0.25) }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, marginBottom: 8 }}>
+        <Text style={{ color: C.text, fontSize: 13, fontWeight: '900', letterSpacing: 1.2 }}>SELECCIONA UN JUEGO</Text>
+        <Text style={{ color: C.cyan, fontSize: 12, fontWeight: '900' }}>{items.length} JUEGOS</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 10, gap: 8 }}>
+        {items.map((g, i) => {
+          const selected = i === idx;
+          return (
+            <Pressable key={g.id} testID={`select-${g.id}`} accessibilityRole="button" accessibilityLabel={`Seleccionar ${g.name}`} onPress={() => onSelect(i)}>
+              <View style={{ width: 88, minHeight: 76, padding: 8, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? alpha(g.color, 0.24) : 'rgba(255,255,255,0.05)', borderWidth: 1.5, borderColor: selected ? g.color : alpha(g.color, 0.35), ...glow(g.color, selected ? 10 : 0, selected ? 0.55 : 0) }}>
+                <Text style={{ fontSize: 27 }}>{g.emoji}</Text>
+                <Text numberOfLines={1} style={{ color: selected ? '#fff' : C.dim, fontSize: 9, fontWeight: '900', letterSpacing: 0.4, marginTop: 4 }}>{g.name}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 // ─── Menú ─────────────────────────────────────────────────────────
 export function Menu3D({ games, categories, onPick }) {
   const { width: W, height: H } = useWindowDimensions();
@@ -460,7 +401,6 @@ export function Menu3D({ games, categories, onPick }) {
   const [bests, setBests] = useState({});
   const [cat, setCatState] = useState(() => MEM.cat);
   const [panel, setPanel] = useState(null);                    // null | 'settings' | 'ach'
-  const [overview, setOverview] = useState(false);
   const [fi, setFi] = useState(0);
   const [flashC, setFlashC] = useState('#ffffff');
   const flash = useRef(new Animated.Value(0)).current;
@@ -471,7 +411,7 @@ export function Menu3D({ games, categories, onPick }) {
   const dailyDone = prof.daily.done && prof.daily.date !== '';
   const sref = useRef(null); if (!sref.current) sref.current = newState();
   const S = sref.current;
-  S.W = W; S.H = H; S.dailyId = dailyDone ? null : daily.id; S.favs = prof.favs; S.panel = !!panel; S.overview = overview;
+  S.W = W; S.H = H; S.dailyId = dailyDone ? null : daily.id; S.favs = prof.favs; S.panel = !!panel;
 
   // lista y disposición en anillo
   const favKey = cat === 'fav' ? Object.keys(prof.favs).filter(k => prof.favs[k]).join(',') : '';
@@ -500,7 +440,10 @@ export function Menu3D({ games, categories, onPick }) {
   useEffect(() => { Animated.timing(chrome, { toValue: panel ? 0 : 1, duration: 200, useNativeDriver: true }).start(); }, [!!panel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const later = (fn, ms) => { const id = setTimeout(fn, ms); S.timers.push(id); };
-  const goTo = i => { if (!S.lay.n) return; S.spin = null; S.target = unwrapTo(S.lay, S.pos, i); };
+  const goTo = i => {
+    if (!S.lay.n || !S.lay.items[i]) return;
+    S.spin = null; S.idx = i; S.pos = S.target = S.lay.slot[i]; MEM.id = S.lay.items[i].id; setFi(i);
+  };
   const launch = (id, fast) => {
     if (S.launch) return;
     const g = games.find(x => x.id === id); if (!g) return;
@@ -530,49 +473,6 @@ export function Menu3D({ games, categories, onPick }) {
   const onDaily = () => { hx.tap(); if (cat !== 'all') { S.pending = 'daily'; setCat('all'); } else doDaily(); };
   useEffect(() => { const p = S.pending; if (p && cat === 'all') { S.pending = null; if (p === 'surprise') doSurprise(); else doDaily(); } }, [lay]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // gestos: arrastrar = girar el carrusel · tocar = enfocar (o jugar si ya está enfocada)
-  const setOverviewMode = value => { hx.tick(); S.overview = value; setOverview(value); };
-  const cb = useRef({}); cb.current = { S, launch, goTo, W, H, setOverviewMode };
-  const pan = useRef(null);
-  if (!pan.current) {
-    pan.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => !cb.current.S.launch && !cb.current.S.panel,
-      onMoveShouldSetPanResponder: () => !cb.current.S.launch && !cb.current.S.panel,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => { const s = cb.current.S; s.dragging = true; s.moved = false; s.spin = null; s.drag0 = s.pos; s.dragT = nowS(); s.vel = 0; },
-      onPanResponderMove: (e, g) => {
-        const s = cb.current.S, L = s.lay; if (!L.n) return;
-        // No esperes a superar la distancia de "tap": en dispositivos táctiles
-        // los primeros eventos de movimiento pueden llegar agrupados.
-        if (Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP) s.moved = true;
-        let np = s.drag0 - g.dx / PXU;
-        if (!L.closed) { const lo = L.slot[0] - 0.55, hi = L.slot[L.n - 1] + 0.55; if (np < lo) np = lo - (lo - np) * 0.3; else if (np > hi) np = hi + (np - hi) * 0.3; }
-        const t = nowS(), dtm = Math.max(0.008, t - s.dragT); s.dragT = t;
-        s.vel = s.vel * 0.55 + ((np - s.pos) / dtm) * 0.45; s.pos = np;
-      },
-      onPanResponderRelease: (e, g) => {
-        const c = cb.current, s = c.S, L = s.lay; s.dragging = false;
-        if (!L.n) return;
-        const moved = s.moved || Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP;
-        if (!moved) {
-          s.vel = 0;
-          const i = hitTest(s, g.x0, g.y0);
-          if (i >= 0) {
-            if (s.overview) { c.setOverviewMode(false); hx.tick(); c.goTo(i); }
-            else if (i === s.idx) c.launch(L.items[i].id);
-            else { hx.tick(); c.goTo(i); }
-          } else c.goTo(s.idx);
-          return;
-        }
-        const v = Math.max(-14, Math.min(14, s.vel));
-        let j = nearestIdx(L, s.pos + v * 0.2);
-        if (!L.closed) j = Math.max(0, Math.min(L.n - 1, j));
-        s.target = unwrapTo(L, s.pos, j); s.vel = v;
-      },
-      onPanResponderTerminate: () => { const s = cb.current.S; s.dragging = false; if (s.lay.n) s.target = unwrapTo(s.lay, s.pos, nearestIdx(s.lay, s.pos)); },
-    });
-  }
-
   const getScene = useRef(t => sceneAt(sref.current, t)).current;
   const cats = useMemo(() => [categories[0], { id: 'fav', label: '⭐ FAVORITOS' }, ...categories.slice(1)], [categories]);
   const counts = useMemo(() => { const o = { all: games.length, fav: 0 }; games.forEach(g => { o[g.cat] = (o[g.cat] || 0) + 1; if (prof.favs[g.id]) o.fav++; }); return o; }, [games, favKey, prof.xp]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -582,8 +482,6 @@ export function Menu3D({ games, categories, onPick }) {
   return (
     <View style={{ width: W, height: H, backgroundColor: BG, overflow: 'hidden' }}>
       <World3D getScene={getScene} />
-      <View style={StyleSheet.absoluteFill} {...pan.current.panHandlers} />
-      <Labels S={S} />
 
       <Fade side="top" h={150} max={0.72} color={BG} />
       <Fade side="bottom" h={380} max={0.9} color={BG} />
@@ -593,37 +491,12 @@ export function Menu3D({ games, categories, onPick }) {
           <TopBar xp={prof.xp} streak={prof.streak} achN={achN} onProfile={() => { hx.tick(); setPanel('ach'); }} onSettings={() => { hx.tick(); setPanel('settings'); }} />
           <CatChips cats={cats} cat={cat} onCat={setCat} counts={counts} />
           <View pointerEvents="none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            {overview ? <View style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, backgroundColor: 'rgba(7,9,24,0.68)', borderWidth: 1, borderColor: alpha(C.cyan, 0.55) }}><Text style={{ color: C.cyan, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 }}>VISTA GENERAL · {lay.n} JUEGOS</Text></View> : null}
+            {hero ? <Text style={{ color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 1.5, textShadowColor: hero.color, textShadowRadius: 12 }}>{hero.emoji} {hero.name}</Text> : null}
             {lay.n === 0 ? <Text style={{ color: C.dim, textAlign: 'center', fontSize: 14, paddingHorizontal: 40 }}>Marca juegos con ☆ para verlos aquí.</Text> : null}
           </View>
           <View pointerEvents="box-none" style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
-            <View style={{ flexDirection: 'row', marginBottom: 8, gap: 8 }}>
-              <Pressable testID="overview" accessibilityRole="button" accessibilityLabel={overview ? 'Volver a la vista enfocada' : 'Ver todos los juegos'} onPress={() => setOverviewMode(!overview)} style={{ minWidth: 104 }}>
-                <View style={{ height: '100%', paddingHorizontal: 10, borderRadius: 18, backgroundColor: alpha(C.cyan, overview ? 0.28 : 0.12), borderWidth: 1.5, borderColor: alpha(C.cyan, overview ? 1 : 0.7), alignItems: 'center', justifyContent: 'center', ...glow(C.cyan, overview ? 16 : 8, 0.45) }}>
-                  <Text style={{ fontSize: 20 }}>{overview ? '🎯' : '🌐'}</Text>
-                  <Text style={{ color: C.cyan, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 }}>{overview ? 'ENFOQUE' : 'VER TODOS'}</Text>
-                </View>
-              </Pressable>
-              <Pressable testID="daily" onPress={onDaily} style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18, backgroundColor: alpha(C.amber, dailyDone ? 0.07 : 0.16), borderWidth: 1.5, borderColor: alpha(C.amber, dailyDone ? 0.4 : 0.85), ...glow(C.amber, dailyDone ? 4 : 12, dailyDone ? 0.2 : 0.55) }}>
-                  <Text style={{ fontSize: 22, marginRight: 9 }}>{daily.emoji}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: C.amber, fontSize: 10, fontWeight: '900', letterSpacing: 1.6 }}>🎯 RETO DEL DÍA {dailyDone ? '· ¡CUMPLIDO!' : '· +50 XP'}</Text>
-                    <Text numberOfLines={1} style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{daily.name}</Text>
-                  </View>
-                  <Text style={{ color: C.amber, fontSize: 20 }}>{dailyDone ? '✓' : '›'}</Text>
-                </View>
-              </Pressable>
-              <Pressable testID="surprise" onPress={onSurprise}>
-                <View style={{ height: '100%', minWidth: 104, paddingHorizontal: 12, borderRadius: 18, backgroundColor: alpha(C.pink, 0.15), borderWidth: 1.5, borderColor: alpha(C.pink, 0.8), alignItems: 'center', justifyContent: 'center', ...glow(C.pink, 12, 0.5) }}>
-                  <Text style={{ fontSize: 22 }}>🎲</Text>
-                  <Text style={{ color: C.pink, fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>SORPRÉNDEME</Text>
-                </View>
-              </Pressable>
-            </View>
-            {!overview && hero ? <GameCard g={hero} best={bests[hero.id] || 0} fav={!!prof.favs[hero.id]} isDaily={hero.id === daily.id && !dailyDone} idx={Math.min(fi, lay.n - 1)} n={lay.n} catLabel={catLabel}
-              onPlay={() => launch(hero.id)} onFav={() => { hx.tick(); Profile.toggleFav(hero.id); }} /> : null}
-            {!overview && lay.n > 1 ? <Scrubber items={lay.items} idx={Math.min(fi, lay.n - 1)} onScrub={i => { goTo(i); }} /> : null}
+            <GamePicker items={lay.items} idx={Math.min(fi, lay.n - 1)} onSelect={i => { hx.tick(); goTo(i); }} />
+            {hero ? <Btn3D testID="play" wide size="lg" color={hero.color} icon="▶" label={`JUGAR ${hero.name}`} onPress={() => launch(hero.id)} /> : null}
           </View>
         </Animated.View>
       </SafeAreaView>
