@@ -57,6 +57,8 @@ import { ReactionTime3D } from './games3d/reactiontime';
 import { WhackAMole3D } from './games3d/whackamole';
 import { FruitTap3D } from './games3d/fruittap';
 import { RhythmTap3D } from './games3d/rhythm';
+import { NeonDodge3D } from './games3d/neondodge';
+import { OrbitCatch3D } from './games3d/orbitcatch';
 import { ToastHost } from './utils/meta';
 import { Menu3D } from './ui/Menu3D';
 import { useApplyQuality } from './ui/Panels3D';
@@ -264,6 +266,8 @@ const GAMES = [
   { id: 'skyhop', name: 'SKY HOP', emoji: '🦘', tag: 'Rebota hacia el cielo sin caer', color: C.cyan, cat: 'reflejos', Comp: SkyHop3D },
   { id: 'minesweeper', name: 'BUSCAMINAS', emoji: '💣', tag: 'Despeja el campo con lógica', color: C.red, cat: 'puzzle', Comp: Buscaminas3D },
   { id: 'connect4', name: '4 EN LÍNEA', emoji: '🔴', tag: 'Conecta cuatro contra la IA', color: C.red, cat: 'puzzle', Comp: Connect4_3D },
+  { id: 'neondodge', name: 'NEON DODGE', emoji: '💠', tag: 'Esquiva bloques que aceleran', color: C.cyan, cat: 'accion', Comp: NeonDodge3D },
+  { id: 'orbitcatch', name: 'ORBIT CATCH', emoji: '🌟', tag: 'Atrapa estrellas y evita trampas', color: C.amber, cat: 'arcade', Comp: OrbitCatch3D },
 ];
 
 // Transición entre pantallas: velo de color que se desvanece (entrar a un juego = color del juego · volver = oscuro)
