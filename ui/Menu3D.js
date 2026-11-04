@@ -31,7 +31,7 @@ const GAP = 0.8;                 // hueco extra entre grupos de categoría (en �
 const RMIN = 7.5, RMAX = 40;     // radio de la rotonda
 const CAM_D = 6.0, CAM_H = 2.15, CAM_LY = 0.35, CAM_FOV = 52;
 const PXU = 96;                  // píxeles de arrastre por máquina
-const DRAG_SLOP = 18;            // evita confundir un arrastre corto con un toque
+const DRAG_SLOP = 10;            // un pequeño desplazamiento ya cuenta como arrastre
 const VIS = 5.6;                 // máquinas visibles a cada lado
 const BG = '#07051a';
 const CAT_COL = { all: C.cyan, fav: C.amber, accion: C.pink, arcade: C.lime, reflejos: C.orange, puzzle: C.violet, aventura: C.blue };
@@ -532,7 +532,9 @@ export function Menu3D({ games, categories, onPick }) {
       onPanResponderGrant: () => { const s = cb.current.S; s.dragging = true; s.moved = false; s.spin = null; s.drag0 = s.pos; s.dragT = nowS(); s.vel = 0; },
       onPanResponderMove: (e, g) => {
         const s = cb.current.S, L = s.lay; if (!L.n) return;
-        if (Math.hypot(g.dx, g.dy) > DRAG_SLOP) s.moved = true;
+        // No esperes a superar la distancia de "tap": en dispositivos táctiles
+        // los primeros eventos de movimiento pueden llegar agrupados.
+        if (Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP) s.moved = true;
         let np = s.drag0 - g.dx / PXU;
         if (!L.closed) { const lo = L.slot[0] - 0.55, hi = L.slot[L.n - 1] + 0.55; if (np < lo) np = lo - (lo - np) * 0.3; else if (np > hi) np = hi + (np - hi) * 0.3; }
         const t = nowS(), dtm = Math.max(0.008, t - s.dragT); s.dragT = t;
@@ -541,7 +543,8 @@ export function Menu3D({ games, categories, onPick }) {
       onPanResponderRelease: (e, g) => {
         const c = cb.current, s = c.S, L = s.lay; s.dragging = false;
         if (!L.n) return;
-        if (!s.moved && Math.hypot(g.dx, g.dy) <= DRAG_SLOP) {
+        const moved = s.moved || Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP;
+        if (!moved) {
           s.vel = 0;
           const i = hitTest(s, g.x0, g.y0);
           if (i >= 0) { if (i === s.idx) c.launch(L.items[i].id); else { hx.tick(); c.goTo(i); } } else c.goTo(s.idx);
