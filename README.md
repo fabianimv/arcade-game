@@ -19,13 +19,13 @@ Lo voy orquestando en mis ratos libres — una tarde aquí, un fin de semana all
 
 ---
 
-A fully-featured **multi-game arcade hub** built with **React Native + Expo**, packed with haptic feedback, emoji sprites, and retro neon energy. 41 games, one app, zero excuses to be bored.
+A fully-featured **multi-game arcade hub** built with **React Native + Expo**, packed with haptic feedback, real-time 3D scenes, and retro neon energy. 56 games, one app, zero excuses to be bored.
 
 Deployed over-the-air via **EAS Update** straight to your iPhone through **Expo Go** — no App Store required.
 
 ---
 
-## 🎮 Los juegos (54)
+## 🎮 Los juegos (56)
 
 Todo está hecho en **3D de verdad** (three.js sobre `expo-gl`): cada juego es un mundo con cámara en primera o tercera persona, sombras, cielo, partículas y modelos animados, construido sobre un motor común (`utils/engine3d.js`, `utils/prefabs.js`, `utils/ui3d.js`). El **menú** es una sala arcade 3D de neón con una máquina recreativa por juego (`ui/Menu3D.js`): desliza para recorrerla, toca una máquina para verla y JUGAR. Incluye categorías, favoritos, reto del día y **Sorpréndeme** 🎲. Los récords y el perfil se conservan entre versiones.
 
@@ -39,7 +39,7 @@ Todo está hecho en **3D de verdad** (three.js sobre `expo-gl`): cada juego es u
 | 🌍 **Mundo abierto 3D** | **Isla del Tesoro** (cofres, palmeras y cangrejos) · **Safari Foto** (fotografía animales desde un jeep) · **Granja Libre** (planta, riega, cosecha y vende) · **Rally Abierto** (contrarreloj con aros y rampas) · **Reparto en Moto** (entregas en primera persona por la ciudad) · **Jinete de Dragón** (vuelo libre y torres enemigas) · **Planeta Alien** (baja gravedad, cristales y oxígeno) · **Cazafantasmas** (pueblo de noche, linterna) · **Supervivencia Zombi** (tala, vallas y 4 noches) · **Parkour Urbano** (saltos entre azoteas) · **Lago de Pesca** (lanza, espera y recoge) |
 
 ### 🧬 Progreso y extras
-- **Sonido** sintetizado para todos los juegos (activable en ⚙️ Ajustes; requiere `expo-audio`, ya incluido en `package.json`).
+- **Sonido** sintetizado para todos los juegos (activable en ⚙️ Ajustes; usa `expo-audio`).
 - **Perfil**: nivel y XP, **12 logros** y **reto del día** con racha 🔥 (un juego distinto cada día).
 - **Favoritos** ⭐ con su propia pestaña en el menú.
 - **Ajustes**: sonido, vibración, **calidad gráfica** (Alta con sombras / Rápida) y borrado de progreso.
@@ -67,7 +67,8 @@ The app is deployed with **Expo EAS Update**. That means new game content, bug f
 | Technology | Purpose |
 |------------|---------|
 | **React Native** | Core mobile framework |
-| **Expo SDK 58** | Managed workflow, dev tooling |
+| **Expo SDK 58** | Managed workflow y herramientas de desarrollo |
+| **Three.js 0.166** + **expo-gl** | Escenas 3D y renderizado WebGL |
 | **expo-haptics** | Tactile feedback throughout all games |
 | **expo-updates** | OTA delivery via EAS Update |
 | **@react-native-async-storage/async-storage** | Récords y partidas guardadas |
@@ -77,28 +78,46 @@ The app is deployed with **Expo EAS Update**. That means new game content, bug f
 
 ## 🚀 How to Run
 
-### Prerequisites
-- Node.js installed
-- Expo Go app installed on your iPhone
-- EAS CLI: `npm install -g eas-cli`
+### Requisitos
+- Node.js LTS y npm
+- Expo Go en el dispositivo si vas a probar en móvil
+- EAS CLI solo para publicar actualizaciones: `npm install -g eas-cli`
 
-### Install dependencies
+### Instalar dependencias
 ```bash
 npm install
 ```
 
-### Push an OTA update to your device
+### Ejecutar en desarrollo
+```bash
+npm start
+```
+
+`npm start` abre Expo con túnel (`--tunnel --clear`), que es la opción recomendada desde Codespaces. También puedes usar `npm run web`, `npm run android` o `npm run ios` cuando el entorno lo permita.
+
+### Publicar una actualización OTA
 ```bash
 eas update --branch main --platform ios
 ```
 
-Then open **Expo Go** on your iPhone, navigate to your project, and the latest update will load automatically. 🎉
+Después abre **Expo Go** y carga el proyecto actualizado. Las actualizaciones OTA requieren que el runtime nativo instalado sea compatible con la versión de la aplicación.
+
+## 🗂️ Estructura del proyecto
+
+- `App.js`: registro `GAMES`, categorías y navegación del menú.
+- `games3d/`: un componente por juego.
+- `ui/`: menú 3D y paneles de ajustes, perfil y gráficos.
+- `utils/`: motor 3D, mundo WebGL, prefabs, controles, efectos y persistencia.
+- `docs/ENGINE3D.md`: contrato de escenas y guía para crear juegos.
+- `ai-guide.md`: notas de desarrollo y depuración en Codespaces.
+
+Para añadir un juego, crea `games3d/<id>.js`, expórtalo desde `App.js` y añade una entrada a `GAMES`. Conserva las claves de `useBest()` para no perder récords existentes.
 
 ---
 
 ## 🤖 Built By AI
 
-This entire app — all 41 games, the hub UI, the haptics, the save system, the animations — was architected and coded by an **AI assistant** in collaboration with the user. No game engine. No third-party game framework. Pure React Native, raw creativity, and a lot of emoji.
+This entire app — all 56 games, the hub UI, the haptics, the save system, the animations, and the 3D engine — was architected and coded by an **AI assistant** in collaboration with the user. No third-party game framework. Pure React Native, Three.js, raw creativity, and a lot of emoji.
 
 > *Proof that AI + human > either alone.* 💪
 

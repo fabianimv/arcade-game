@@ -121,13 +121,14 @@ Ejemplo animado: `person('yo', [x,y,z], { yaw: p.face, t: s.t, walk: moving ? 1 
 
 ## 6. Probar (sin dispositivo)
 
+El repositorio no incluye un harness de Playwright ni scripts `smoke.js`/`arenat.js`. Para validar cambios localmente, inicia Expo Web:
+
 ```
-HARN=$(bash $SP/mkh.sh <letra>);  REPO=$(pwd) HARNESS=$HARN bash $SP/build_wt.sh
-cd $HARN && node smoke.js <id>          # sin errores de runtime
-node arenat.js <id>                     # captura arena-<id>.png tras pulsar JUGAR
-node owdrive.js <id> <testID-mover> <testID-mirar>   # conduce y captura drive-<id>-*.png
+npm install
+npm run web
 ```
-Abre las capturas con Read: comprueba sombras, cielo, que la cámara encuadra y que se ve bonito. `globalThis.__w3d` (mallas, instancias, draw calls, triángulos) se actualiza cada 30 frames para depurar rendimiento.
+
+Prueba el menú, abre el juego modificado y revisa la consola del navegador. En un dispositivo, usa `npm start` para levantar Expo con túnel. `globalThis.__w3d` (mallas, instancias, draw calls, triángulos) se actualiza cada 30 frames para depurar rendimiento cuando está disponible.
 
 ## 7. Compatibilidad
 
