@@ -21,6 +21,10 @@ React Native / Expo arcade app where **everything is real 3D** (three.js 0.166 o
 
 **Read `docs/ENGINE3D.md` before touching any game.** Reference game: `games3d/islatesoro.js`.
 
+**Antes de tomar cualquier cambio, sigue `docs/EXPO_UPDATES.md`: comprueba la última
+versión estable de Expo y actualiza el SDK y sus dependencias compatibles antes de
+implementar el resto del trabajo.**
+
 ## Adding a New Game
 
 1. Create `games3d/<id>.js` exporting `function MyGame3D({ onExit })`, built on `Game3D` (see `docs/ENGINE3D.md` §1).

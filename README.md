@@ -109,6 +109,7 @@ Después abre **Expo Go** y carga el proyecto actualizado. Las actualizaciones O
 - `ui/`: menú 3D y paneles de ajustes, perfil y gráficos.
 - `utils/`: motor 3D, mundo WebGL, prefabs, controles, efectos y persistencia.
 - `docs/ENGINE3D.md`: contrato de escenas y guía para crear juegos.
+- `docs/EXPO_UPDATES.md`: plan obligatorio para mantener Expo actualizado.
 - `ai-guide.md`: notas de desarrollo y depuración en Codespaces.
 
 Para añadir un juego, crea `games3d/<id>.js`, expórtalo desde `App.js` y añade una entrada a `GAMES`. Conserva las claves de `useBest()` para no perder récords existentes.

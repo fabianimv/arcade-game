@@ -2,6 +2,8 @@
 
 Este documento da contexto a asistentes de IA para configurar, depurar y ejecutar este proyecto Expo SDK 58 desde GitHub Codespaces y probarlo en un iPhone con **Expo Go**.
 
+> **Regla obligatoria:** antes de tomar cambios, lee [`docs/EXPO_UPDATES.md`](docs/EXPO_UPDATES.md), comprueba la última versión estable de Expo y actualiza el SDK y sus dependencias compatibles.
+
 ## 🌍 Contexto del Entorno
 - **Entorno de Desarrollo:** GitHub Codespaces (Ubuntu Linux, sin interfaz gráfica local).
 - **Dispositivo de Prueba:** iPhone físico con la app **Expo Go** instalada.
